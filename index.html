@@ -92,6 +92,13 @@ button.action{background:var(--gold); color:#1c1712; border:none; border-radius:
 .cam{position:relative; margin-top:12px; border-radius:10px; overflow:hidden; background:#000; aspect-ratio:4/3;}
 .cam video{width:100%; height:100%; object-fit:cover; display:block;}
 .cam .frame{position:absolute; inset:18% 22%; border:2px solid var(--gold); border-radius:10px; pointer-events:none;}
+.cam .focusdot{position:absolute; width:56px; height:56px; margin:-28px 0 0 -28px; border:2px solid #fff; border-radius:50%;
+  pointer-events:none; opacity:0; transition:opacity .4s;}
+.cam .focusdot.show{opacity:.9; transition:none;}
+.camtools{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;}
+.camtools button{background:var(--bg); border:1px solid var(--line); color:var(--text); border-radius:7px; padding:8px 12px; font-size:.85rem; cursor:pointer;}
+.camtools button.on{border-color:var(--gold); color:var(--gold); font-weight:600;}
+.camhint{font-size:.76rem; color:var(--muted); margin:6px 0 0;}
 .or{display:flex; align-items:center; gap:10px; color:var(--muted); font-size:.75rem; margin:14px 0 10px;}
 .or::before,.or::after{content:""; flex:1; height:1px; background:var(--line);}
 
@@ -201,8 +208,11 @@ a.rawbt-link{display:block; text-align:center; text-decoration:none; box-sizing:
     <button class="action" id="scanBtn" type="button">Scan tags</button>
     <div class="cam" id="cam" hidden>
       <video id="video" playsinline muted></video>
-      <div class="frame"></div>
+      <div class="frame" id="camFrame"></div>
+      <div class="focusdot" id="focusDot"></div>
     </div>
+    <div class="camtools" id="camTools" hidden></div>
+    <p class="camhint" id="camHint" hidden>Hold the tag 15–20 cm away so the QR fills the box. Tap the picture to focus. If it stays blurry, try Switch camera.</p>
     <p class="scan-toast" id="scanToast" hidden></p>
     <div class="row" id="dupRow" hidden><button class="ghost" id="addAgain" type="button">Add it again (second identical piece)</button></div>
     <div class="row" id="camRow" hidden><button class="ghost" id="stopCam" type="button">Done scanning</button></div>
@@ -1477,23 +1487,112 @@ const QRDecode = (function(){
 const video = $('video');
 let lastCode = null, lastCodeAt = 0;
 
-async function startCamera(){
+// ---- camera controls: zoom, light, switch camera, tap to focus (only shown when the phone supports them) ----
+const CAM_KEY = 'estimate-camera';
+let camTrack = null, camCaps = {}, camZoom = 1, torchOn = false, backCams = [];
+async function applyCam(c){ try{ await camTrack.applyConstraints({advanced: [c]}); return true; }catch(e){ return false; } }
+async function listBackCams(){
+  try{
+    const ds = (await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind === 'videoinput');
+    const back = ds.filter(d=>/back|rear|environment/i.test(d.label));
+    backCams = back.length ? back : ds;
+  }catch(e){ backCams = []; }
+}
+async function setZoom(z){
+  if(!camTrack || !camCaps.zoom) return;
+  z = Math.max(camCaps.zoom.min, Math.min(camCaps.zoom.max, z));
+  if(await applyCam({zoom: z})) camZoom = z;
+  renderCamTools();
+}
+function renderCamTools(){
+  const box = $('camTools'); box.innerHTML = '';
+  const btn = (label, on, fn, aria)=>{ const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
+    if(on) b.className = 'on'; if(aria) b.setAttribute('aria-label', aria); b.addEventListener('click', fn); box.appendChild(b); };
+  if(camCaps.zoom){
+    [1, 2, 3, 4].filter(z=>z >= camCaps.zoom.min - 0.01 && z <= camCaps.zoom.max + 0.01)
+      .forEach(z=>btn(z + '×', Math.abs(camZoom - z) < 0.1, ()=>setZoom(z), 'Zoom ' + z + ' times'));
+  }
+  if(camCaps.torch) btn(torchOn ? 'Light on' : 'Light', torchOn, async ()=>{ if(await applyCam({torch: !torchOn})){ torchOn = !torchOn; renderCamTools(); } });
+  if(backCams.length > 1) btn('Switch camera', false, switchCamera);
+  box.hidden = !box.children.length;
+}
+async function switchCamera(){
+  if(!backCams.length) return;
+  const cur = camTrack && camTrack.getSettings ? camTrack.getSettings().deviceId : null;
+  const i = backCams.findIndex(d=>d.deviceId === cur);
+  const next = backCams[(i + 1) % backCams.length];
+  try{ localStorage.setItem(CAM_KEY, next.deviceId); }catch(e){}
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream = null; }
+  scanning = false;
+  await startCamera(next.deviceId);
+  toast(`Camera ${(backCams.indexOf(next) + 1)} of ${backCams.length}. Keep the one that focuses on the tag.`);
+}
+// the box on screen shows the part of the picture that is read closely
+function positionFrame(){
+  const vw = video.videoWidth, vh = video.videoHeight, el = $('cam');
+  if(!vw || !vh || el.hidden) return;
+  const W = el.clientWidth, H = el.clientHeight, k = Math.max(W / vw, H / vh);
+  const ox = (W - vw * k) / 2, oy = (H - vh * k) / 2, c = cropRect(vw, vh), f = $('camFrame');
+  f.style.inset = 'auto';
+  f.style.left = (ox + c.x * k) + 'px'; f.style.top = (oy + c.y * k) + 'px';
+  f.style.width = (c.s * k) + 'px'; f.style.height = (c.s * k) + 'px';
+}
+function cropRect(vw, vh){ const s = Math.round(0.55 * Math.min(vw, vh)); return {x: Math.round((vw - s) / 2), y: Math.round((vh - s) / 2), s}; }
+video.addEventListener('loadedmetadata', positionFrame);
+window.addEventListener('resize', positionFrame);
+// tap the picture to focus there
+video.addEventListener('click', async ev=>{
+  if(!camTrack) return;
+  const r = video.getBoundingClientRect();
+  const dot = $('focusDot'); dot.style.left = (ev.clientX - r.left) + 'px'; dot.style.top = (ev.clientY - r.top) + 'px';
+  dot.classList.add('show'); setTimeout(()=>dot.classList.remove('show'), 600);
+  const modes = camCaps.focusMode || [];
+  if(modes.includes('single-shot')){
+    const x = (ev.clientX - r.left) / r.width, y = (ev.clientY - r.top) / r.height;
+    (await applyCam({focusMode: 'single-shot', pointsOfInterest: [{x, y}]})) || (await applyCam({focusMode: 'single-shot'}));
+    if(modes.includes('continuous')) setTimeout(()=>{ if(camTrack) applyCam({focusMode: 'continuous'}); }, 3000);
+  } else if(modes.includes('continuous')){
+    await applyCam({focusMode: 'manual'}); await applyCam({focusMode: 'continuous'});   // nudge the camera to refocus
+  }
+});
+
+async function startCamera(deviceId){
   $('scanNote').className = 'note'; $('scanNote').textContent = '';
   if(!liveCameraPossible()) return cameraUnavailable();
-  try{ stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment', width:{ideal:1920}, height:{ideal:1080}}}); }
-  catch(e){ return cameraUnavailable(e); }
+  let saved = null; try{ saved = localStorage.getItem(CAM_KEY); }catch(e){}
+  const want = deviceId || saved;
+  const base = {width: {ideal: 1920}, height: {ideal: 1080}};
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video: want ? {...base, deviceId: {exact: want}} : {...base, facingMode: 'environment'}});
+  }catch(e){
+    if(!want) return cameraUnavailable(e);
+    try{ localStorage.removeItem(CAM_KEY); }catch(err){}
+    try{ stream = await navigator.mediaDevices.getUserMedia({video: {...base, facingMode: 'environment'}}); }
+    catch(e2){ return cameraUnavailable(e2); }
+  }
+  camTrack = stream.getVideoTracks()[0];
+  camCaps = (camTrack && camTrack.getCapabilities && camTrack.getCapabilities()) || {};
+  torchOn = false; camZoom = 1;
   video.srcObject = stream;
   await video.play().catch(()=>{});
-  $('cam').hidden = false; $('camRow').hidden = false; $('scanBtn').hidden = true;
+  $('cam').hidden = false; $('camRow').hidden = false; $('scanBtn').hidden = true; $('camHint').hidden = false;
+  positionFrame();
+  // keep refocusing by itself, and start a little zoomed in so the phone can be held far enough back to focus
+  if((camCaps.focusMode || []).includes('continuous')) await applyCam({focusMode: 'continuous'});
+  if(camCaps.zoom){ camZoom = (camTrack.getSettings && camTrack.getSettings().zoom) || 1; if(camCaps.zoom.max >= 2) await setZoom(2); }
+  await listBackCams();
+  renderCamTools();
   initDetector();
   toast(items.length ? 'Point the camera at the next tag.' : 'Point the camera at the first tag.');
-  scanning = true; requestAnimationFrame(scanFrame);
+  scanning = true; { const g = ++scanGen; requestAnimationFrame(t=>scanFrame(t, g)); }
 }
 
 function stopCamera(){
   scanning = false;
   if(stream){ stream.getTracks().forEach(t=>t.stop()); stream = null; }
+  camTrack = null; torchOn = false;
   $('cam').hidden = true; $('camRow').hidden = true; $('scanBtn').hidden = false;
+  $('camTools').hidden = true; $('camHint').hidden = true;
   $('scanBtn').textContent = cameraBlocked
     ? (items.length ? 'Photograph next tag' : 'Photograph tag')
     : (items.length ? 'Scan more tags' : 'Scan tags');
@@ -1528,20 +1627,40 @@ function openPhoto(){ if(scanning) stopCamera(); $('photoInput').click(); }
 
 const canvas = document.createElement('canvas');
 const ctx = canvas.getContext('2d', {willReadFrequently:true});
-let lastTry = 0;
+let lastTry = 0, scanTick = 0, scanGen = 0;
+const cropCanvas = document.createElement('canvas');
+const cropCtx = cropCanvas.getContext('2d', {willReadFrequently:true});
 
-async function scanFrame(ts){
-  if(!scanning) return;
-  if(ts - lastTry > 300 && video.readyState >= 2){
+// Read the box in the middle at full camera resolution (enlarged), so a 1 cm QR has enough detail
+async function decodeCrop(vw, vh){
+  const c = cropRect(vw, vh);
+  const out = Math.max(640, Math.min(1200, Math.round(c.s * 1.4)));
+  cropCanvas.width = out; cropCanvas.height = out;
+  cropCtx.imageSmoothingQuality = 'high';
+  cropCtx.drawImage(video, c.x, c.y, c.s, c.s, 0, 0, out, out);
+  if(detector){
+    try{ const codes = await detector.detect(cropCanvas); if(codes.length) return codes[0].rawValue; }catch(e){}
+  }
+  const px = cropCtx.getImageData(0, 0, out, out).data;
+  const gray = new Uint8Array(out * out);
+  for(let i = 0, j = 0; j < gray.length; i += 4, j++) gray[j] = (px[i]*77 + px[i+1]*150 + px[i+2]*29) >> 8;
+  return QRDecode.decodeGray(gray, out, out);
+}
+
+async function scanFrame(ts, gen){
+  if(!scanning || gen !== scanGen) return;   // an older loop (before switching camera) stops here
+  if(ts - lastTry > 250 && video.readyState >= 2){
     lastTry = ts;
-    const text = await decodeFrom(video, video.videoWidth, video.videoHeight);
+    const vw = video.videoWidth, vh = video.videoHeight;
+    // mostly the close-up of the box; every third try the whole picture
+    const text = (scanTick++ % 3 !== 2) ? await decodeCrop(vw, vh) : await decodeFrom(video, vw, vh);
     // The camera keeps running between items; ignore the tag still in view right after it was read
     if(text && !(text === lastCode && performance.now() - lastCodeAt < 4000)){
       lastCode = text; lastCodeAt = performance.now();
       if(addItem(text) && navigator.vibrate) navigator.vibrate(60);
     } else if(text){ lastCodeAt = performance.now(); }
   }
-  requestAnimationFrame(scanFrame);
+  requestAnimationFrame(t=>scanFrame(t, gen));
 }
 
 async function decodeFrom(source, w, h, isPhoto){
