@@ -99,6 +99,19 @@ button.action{background:var(--gold); color:#1c1712; border:none; border-radius:
 .camtools button{background:var(--bg); border:1px solid var(--line); color:var(--text); border-radius:7px; padding:8px 12px; font-size:.85rem; cursor:pointer;}
 .camtools button.on{border-color:var(--gold); color:var(--gold); font-weight:600;}
 .camhint{font-size:.76rem; color:var(--muted); margin:6px 0 0;}
+/* page tabs */
+.tabs{display:grid; grid-template-columns:1fr 1fr; gap:6px; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:4px; margin-bottom:16px;}
+.tabs button{background:none; border:none; color:var(--muted); border-radius:7px; padding:10px; font-size:.95rem; font-weight:600; cursor:pointer;}
+.tabs button[aria-selected="true"]{background:var(--gold); color:#1c1712;}
+/* old gold */
+.ogpiece{border:1px solid var(--line); border-radius:8px; padding:12px; margin-bottom:12px; background:var(--bg);}
+.ogpiece-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+.ogpiece-head b{color:var(--gold); font-size:.9rem;}
+.ogpiece-head button{background:none; border:none; color:var(--danger); font-size:.85rem; cursor:pointer; padding:4px;}
+.oggrid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+.oggrid .field{margin-bottom:0;}
+.ogres{margin-top:10px; font-size:.84rem; color:var(--muted); line-height:1.5;}
+.ogres b{color:var(--text); font-weight:600; font-variant-numeric:tabular-nums;}
 .or{display:flex; align-items:center; gap:10px; color:var(--muted); font-size:.75rem; margin:14px 0 10px;}
 .or::before,.or::after{content:""; flex:1; height:1px; background:var(--line);}
 
@@ -176,7 +189,7 @@ details[open] .chev{transform:rotate(180deg);}
 .rawbt{margin-top:12px; padding:12px; border:1px solid var(--gold); border-radius:10px; display:flex; flex-direction:column; gap:8px;}
 .rawbt-t{margin:0; font-size:.85rem; color:var(--gold);}
 a.rawbt-link{display:block; text-align:center; text-decoration:none; box-sizing:border-box;}
-#clearBtn.confirm{background:var(--danger); border-color:var(--danger); color:#1c1712; font-weight:600;}
+#clearBtn.confirm, #ogClear.confirm{background:var(--danger); border-color:var(--danger); color:#1c1712; font-weight:600;}
 </style>
 </head>
 <body>
@@ -189,6 +202,11 @@ a.rawbt-link{display:block; text-align:center; text-decoration:none; box-sizing:
     <button class="iconbtn" id="openSettings" type="button" aria-label="Settings" title="Settings">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.820l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="Page">
+    <button type="button" role="tab" id="tabEst" aria-selected="true" aria-controls="page-est">Estimate</button>
+    <button type="button" role="tab" id="tabOld" aria-selected="false" aria-controls="page-old">Old gold report</button>
   </div>
 
   <section class="card">
@@ -204,6 +222,7 @@ a.rawbt-link{display:block; text-align:center; text-decoration:none; box-sizing:
     <p class="note" id="rateNote"></p>
   </section>
 
+  <div id="page-est" role="tabpanel" aria-labelledby="tabEst">
   <section class="card" id="scanCard">
     <button class="action" id="scanBtn" type="button">Scan tags</button>
     <div class="cam" id="cam" hidden>
@@ -290,6 +309,33 @@ a.rawbt-link{display:block; text-align:center; text-decoration:none; box-sizing:
     </div>
     <p class="note" id="shareNote"></p>
   </section>
+  </div>
+
+  <!-- ================= OLD GOLD (customer's gold: purity, MUSA, KDM) ================= -->
+  <div id="page-old" role="tabpanel" aria-labelledby="tabOld" hidden>
+    <section class="card">
+      <h2 style="margin-top:0">Old gold report</h2>
+      <div class="field"><label for="ogCustomer">Customer name <span style="opacity:.75">optional, printed on the slip</span></label>
+        <input id="ogCustomer" type="text" placeholder="e.g. Ramesh"></div>
+      <div id="ogPieces"></div>
+      <div class="row" style="margin-top:0"><button class="ghost" id="ogAdd" type="button">+ Add another piece</button></div>
+    </section>
+    <section class="card grand">
+      <h2 class="grand-title" id="ogTitle">Total</h2>
+      <div class="lines" id="ogLines"></div>
+      <div class="total"><span>Value (KDM × 22KT rate)</span><strong id="ogValue">—</strong></div>
+      <div class="row" style="margin-top:16px">
+        <button class="ghost" id="ogPrint56" type="button">Print 56 mm</button>
+        <button class="ghost" id="ogPrint80" type="button">Print 80 mm</button>
+      </div>
+      <div class="row">
+        <button class="ghost" id="ogShare" type="button">Share</button>
+        <button class="ghost" id="ogCopy" type="button">Copy</button>
+        <button class="ghost" id="ogClear" type="button">New slip</button>
+      </div>
+      <p class="note" id="ogNote"></p>
+    </section>
+  </div>
 </div>
 
 <!-- ================= SETTINGS ================= -->
@@ -311,6 +357,10 @@ a.rawbt-link{display:block; text-align:center; text-decoration:none; box-sizing:
       <input id="setMakingFAdd" type="number" inputmode="decimal" step="any"></div>
     <div class="set-row"><div><div class="t">GST %</div><div class="d">Charged on gold + stones + making + other charges.</div></div>
       <input id="setGst" type="number" inputmode="decimal" step="any"></div>
+    <div class="set-row"><div><div class="t">Old gold: deduct from purity %</div><div class="d">Taken off the purity of every piece (79.70% − 1% = 78.70%).</div></div>
+      <input id="setOldLoss" type="number" inputmode="decimal" step="any"></div>
+    <div class="set-row"><div><div class="t">Old gold: copper for KDM %</div><div class="d">Added to MUSA to get KDM gold. This % is never shown or printed; only the copper weight is.</div></div>
+      <input id="setCopper" type="number" inputmode="decimal" step="any"></div>
     <p class="note" id="settingsNote"></p>
   </section>
 
@@ -333,6 +383,7 @@ a.rawbt-link{display:block; text-align:center; text-decoration:none; box-sizing:
 <script>
 // ================= settings & store =================
 const DEFAULTS = { goldRate: null, goldRate18: null, wasteAdd: 2, wasteGAdd: 0, makingAdd: 20, makingFAdd: 0, gstPct: 3,
+                   oldLoss: 1, copperPct: 6.85,
                    shop: '', shop2: '', btCols: 32, pcCols: 48 };
 let S = {...DEFAULTS};
 let dbApi = null, cfgRef = null;
@@ -377,7 +428,8 @@ function saveSettings(){
 function fillSettings(){
   const set = (id, v) => { if(document.activeElement !== $(id)) $(id).value = (v ?? ''); };
   set('goldRate', S.goldRate); set('goldRate18', S.goldRate18); set('setWasteAdd', S.wasteAdd); set('setWasteGAdd', S.wasteGAdd); set('setMakingAdd', S.makingAdd); set('setMakingFAdd', S.makingFAdd);
-  set('setGst', S.gstPct);
+  set('setGst', S.gstPct); set('setOldLoss', S.oldLoss); set('setCopper', S.copperPct);
+  if(typeof ogRender === 'function') ogRender();
   set('setShop', S.shop); set('setShop2', S.shop2); set('setBtCols', S.btCols); set('setPcCols', S.pcCols);
   updateRateNote();
 }
@@ -403,7 +455,7 @@ function bindSetting(id, key){
   });
 }
 bindSetting('goldRate','goldRate'); bindSetting('goldRate18','goldRate18'); bindSetting('setWasteAdd','wasteAdd'); bindSetting('setWasteGAdd','wasteGAdd'); bindSetting('setMakingAdd','makingAdd'); bindSetting('setMakingFAdd','makingFAdd');
-bindSetting('setGst','gstPct');
+bindSetting('setGst','gstPct'); bindSetting('setOldLoss','oldLoss'); bindSetting('setCopper','copperPct');
 bindSetting('setBtCols','btCols'); bindSetting('setPcCols','pcCols');
 function bindText(id, key){ $(id).addEventListener('input', ()=>{ S[key] = $(id).value; saveSettings(); }); }
 bindText('setShop', 'shop'); bindText('setShop2', 'shop2');
@@ -805,7 +857,7 @@ function bindBillInput(id, key){
 bindBillInput('billJama', 'jama');
 
 // recalc() is called when settings or the gold rate change
-function recalc(){ if(items.length) renderBill(); else updateRateNote(); }
+function recalc(){ if(items.length) renderBill(); else updateRateNote(); if(typeof ogUpdate === 'function') ogUpdate(); }
 
 function toast(msg, warn){
   const t = $('scanToast');
@@ -1880,17 +1932,24 @@ $('print80Btn').addEventListener('click', ()=>printViaRawBT(S.pcCols));
 async function printViaRawBT(cols){
   if(!items.length) return;
   if(missingRates().length || (bill.jama && !S.goldRate)){ $('shareNote').textContent = 'Enter today’s gold rate first.'; updateRateNote(); return; }
-  const text = receiptText(cols);
+  printNoteId = 'shareNote';
+  return sendToRawBT(receiptText(cols));
+}
+// Send plain receipt text to RawBT (share menu, or a fallback panel shown under the page's note)
+let printNoteId = 'shareNote';
+async function sendToRawBT(text){
+  const note = $(printNoteId);
   pendingReceipt = text;
   // RawBT link: intent URL carrying the receipt as base64 (receipt text is plain ASCII)
   $('rawbtLink').href = 'intent:base64,' + btoa(text) + '#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;';
   $('rawbtPanel').hidden = true;
   if(navigator.share){
-    try{ await navigator.share({text}); $('shareNote').textContent = 'Pick RawBT in the share menu to print.'; return; }
+    try{ await navigator.share({text}); note.textContent = 'Pick RawBT in the share menu to print.'; return; }
     catch(e){ if(e && e.name==='AbortError') return; }
   }
-  // Share menu blocked here: offer the other two ways
-  $('shareNote').textContent = '';
+  // Share menu blocked here: offer the other two ways, right under this page's buttons
+  note.textContent = '';
+  note.after($('rawbtPanel'));
   $('rawbtPanel').hidden = false;
   $('rawbtPanel').scrollIntoView({behavior:'smooth', block:'nearest'});
 }
@@ -1898,7 +1957,7 @@ async function printViaRawBT(cols){
 let pendingReceipt = '';
 $('rawbtClose').addEventListener('click', ()=>{ $('rawbtPanel').hidden = true; });
 $('rawbtLink').addEventListener('click', ()=>{
-  $('shareNote').textContent = 'If RawBT didn’t open, try option 2.';
+  $(printNoteId).textContent = 'If RawBT didn’t open, try option 2.';
 });
 $('rawbtSave').addEventListener('click', async ()=>{
   if(!pendingReceipt) return;
@@ -1908,16 +1967,175 @@ $('rawbtSave').addEventListener('click', async ()=>{
   if(typeof window.claude !== 'undefined' && window.claude.use){
     let dl = null;
     try{ dl = await window.claude.use('downloads'); }catch(e){ dl = null; }
-    if(!dl){ $('shareNote').textContent = 'Saving a file isn’t available here.'; return; }
+    if(!dl){ $(printNoteId).textContent = 'Saving a file isn’t available here.'; return; }
     try{ await dl.save({filename, data: blob});
-         $('shareNote').textContent = 'Saved. Open the file from your downloads and choose RawBT to print it.'; }
-    catch(e){ if(!(e && e.code==='declined')) $('shareNote').textContent = 'Couldn’t save the file. Try again.'; }
+         $(printNoteId).textContent = 'Saved. Open the file from your downloads and choose RawBT to print it.'; }
+    catch(e){ if(!(e && e.code==='declined')) $(printNoteId).textContent = 'Couldn’t save the file. Try again.'; }
     return;
   }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
   setTimeout(()=>URL.revokeObjectURL(url), 1000);
 });
+
+// ================= old gold: purity → MUSA → KDM =================
+// MUSA = weight × (purity − processing loss)%.  KDM = MUSA + copper% of MUSA (copper % is in Settings, never shown or printed).
+let og = { pieces: [], loss: null, seq: 0 };
+function ogNewPiece(){ return {id: 'p' + (++og.seq), desc: '', wt: '', pur: ''}; }
+function ogLossNow(){ const v = og.loss ?? S.oldLoss; return Number.isFinite(v) ? v : 0; }
+function ogCalc(){
+  const loss = ogLossNow(), cu = Number.isFinite(S.copperPct) ? S.copperPct : 0;
+  const rows = og.pieces.map(p=>{
+    const wt = parseFloat(p.wt), pur = parseFloat(p.pur);
+    if(!(wt > 0) || !(pur > 0)) return {p, ok: false};
+    const net = Math.max(0, r2(pur - loss));
+    const musaExact = wt * net / 100;
+    const musa = r3(musaExact), kdm = r3(musaExact * (1 + cu / 100));
+    return {p, ok: true, wt: r3(wt), pur, net, musa, cu: r3(kdm - musa), kdm};
+  });
+  const ok = rows.filter(r=>r.ok);
+  const tot = {
+    n: ok.length,
+    wt: r3(ok.reduce((a, r)=>a + r.wt, 0)),
+    musa: r3(ok.reduce((a, r)=>a + r.musa, 0)),
+    cu: r3(ok.reduce((a, r)=>a + r.cu, 0)),
+    kdm: r3(ok.reduce((a, r)=>a + r.kdm, 0))
+  };
+  tot.value = S.goldRate && ok.length ? Math.round(tot.kdm * S.goldRate) : null;
+  return {rows, tot, loss};
+}
+function ogRender(){
+  if(!og.pieces.length) og.pieces.push(ogNewPiece());
+  const box = $('ogPieces'); box.innerHTML = '';
+  og.pieces.forEach((p, i)=>{
+    const d = document.createElement('div'); d.className = 'ogpiece';
+    const head = document.createElement('div'); head.className = 'ogpiece-head';
+    const t = document.createElement('b'); t.textContent = 'Piece ' + (i + 1);
+    head.appendChild(t);
+    if(og.pieces.length > 1){
+      const rm = document.createElement('button'); rm.type = 'button'; rm.textContent = 'Remove';
+      rm.setAttribute('aria-label', 'Remove piece ' + (i + 1));
+      rm.addEventListener('click', ()=>{ og.pieces = og.pieces.filter(x=>x !== p); ogRender(); });
+      head.appendChild(rm);
+    }
+    const mk = (key, label, type, ph, full)=>{
+      const f = document.createElement('div'); f.className = 'field'; if(full) f.style.gridColumn = '1 / -1';
+      const l = document.createElement('label'); l.textContent = label; l.htmlFor = 'og-' + key + '-' + p.id;
+      const inp = document.createElement('input'); inp.id = 'og-' + key + '-' + p.id; inp.value = p[key]; inp.placeholder = ph;
+      if(type === 'num'){ inp.type = 'number'; inp.step = 'any'; inp.inputMode = 'decimal'; } else inp.type = 'text';
+      inp.addEventListener('input', ()=>{ p[key] = inp.value; ogUpdate(); });
+      f.append(l, inp); return f;
+    };
+    const g = document.createElement('div'); g.className = 'oggrid';
+    g.append(mk('desc', 'Description (optional)', 'text', 'e.g. old chain', true), mk('wt', 'Weight (g)', 'num', '0.000'), mk('pur', 'Purity %', 'num', 'e.g. 79.70'));
+    const res = document.createElement('div'); res.className = 'ogres'; res.id = 'ogres-' + p.id;
+    d.append(head, g, res); box.appendChild(d);
+  });
+  ogUpdate();
+}
+function ogUpdate(){
+  if(!$('ogLines')) return;
+  const {rows, tot, loss} = ogCalc();
+  rows.forEach(r=>{
+    const el = $('ogres-' + r.p.id); if(!el) return;
+    el.innerHTML = r.ok
+      ? `${r.pur.toFixed(2)}% − ${loss.toFixed(2)}% = <b>${r.net.toFixed(2)}%</b><br>MUSA <b>${r.musa.toFixed(3)} g</b> · Copper <b>+${r.cu.toFixed(3)} g</b> · KDM gold <b>${r.kdm.toFixed(3)} g</b>`
+      : 'Enter weight and purity.';
+  });
+  $('ogTitle').textContent = tot.n > 1 ? `Total for ${tot.n} pieces` : 'Total';
+  const L = $('ogLines'); L.innerHTML = '';
+  L.append(
+    lineEl('Old gold weight', grams(tot.wt)),
+    lineEl('MUSA', grams(tot.musa)),
+    lineEl('Copper', '+' + grams(tot.cu)),
+    lineEl('KDM gold', grams(tot.kdm)),
+    lineEl('22KT rate', S.goldRate ? '₹' + money(S.goldRate) + '/g' : 'Enter 22KT rate above')
+  );
+  $('ogValue').textContent = tot.value === null ? '—' : '₹' + money(tot.value);
+}
+// The slip: plain ASCII for receipt printers. Copper is never on it.
+function ogSlipText(W){
+  W = Math.max(24, Math.min(64, parseInt(W, 10) || 32));
+  const {rows, tot, loss} = ogCalc();
+  const ok = rows.filter(r=>r.ok);
+  const rs = n => 'Rs.' + Number(n).toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const g = n => Number(n).toFixed(3) + ' g';
+  const ascii = s => String(s).replace(/[₹]/g, 'Rs.').replace(/[−–—]/g, '-').replace(/[×]/g, 'x').replace(/[’‘]/g, "'").replace(/[^\x20-\x7E]/g, '');
+  const center = s => { s = ascii(s).slice(0, W); return ' '.repeat(Math.max(0, Math.floor((W - s.length) / 2))) + s; };
+  const lr = (l, r) => { l = ascii(l); r = ascii(r);
+    if(l.length + r.length + 1 > W) return [l.slice(0, W), ' '.repeat(Math.max(0, W - r.length)) + r];
+    return [l + ' '.repeat(W - l.length - r.length) + r]; };
+  const out = [];
+  if(S.shop) out.push(center(S.shop.toUpperCase()));
+  if(S.shop2) out.push(center(S.shop2));
+  out.push(center('OLD GOLD REPORT'));
+  const d = new Date();
+  out.push(...lr(d.toLocaleDateString('en-IN', {day: '2-digit', month: 'short', year: 'numeric'}),
+                 d.toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'})));
+  const cust = $('ogCustomer').value.trim();
+  if(cust) out.push(...lr('Customer', cust));
+  out.push('='.repeat(W));
+  ok.forEach((r, i)=>{
+    out.push(ascii(`${i + 1}. ${(r.p.desc.trim() || 'Old gold').toUpperCase()}`).slice(0, W));
+    out.push(...lr(' Weight', g(r.wt)));
+    out.push(...lr(' Purity', r.pur.toFixed(2) + '%'));
+    out.push(...lr('', '-' + loss.toFixed(2) + '%'));
+    out.push(...lr('', r.net.toFixed(2) + '%'));
+    out.push(...lr(' MUSA', g(r.musa)));
+    out.push(...lr(' Copper', '+' + g(r.cu)));
+    out.push(...lr(' KDM gold', g(r.kdm)));
+    out.push('-'.repeat(W));
+  });
+  if(ok.length > 1){
+    out.push(...lr('Total weight', g(tot.wt)));
+    out.push(...lr('Total MUSA', g(tot.musa)));
+    out.push(...lr('Total copper', '+' + g(tot.cu)));
+    out.push(...lr('Total KDM gold', g(tot.kdm)));
+  }
+  out.push(...lr('22KT rate', rs(S.goldRate || 0) + '/g'));
+  out.push('='.repeat(W));
+  out.push(...lr(`VALUE (${tot.kdm.toFixed(3)}g x ${S.goldRate || 0})`, rs(tot.value || 0)));
+  out.push('='.repeat(W));
+  out.push(center('This is an estimate'));
+  out.push('', '', '');
+  return out.join('\n');
+}
+function ogReady(){
+  const {tot} = ogCalc();
+  if(!tot.n){ $('ogNote').textContent = 'Enter the weight and purity of at least one piece.'; return false; }
+  if(!S.goldRate){ $('ogNote').textContent = 'Enter today’s 22KT rate first.'; return false; }
+  $('ogNote').textContent = ''; return true;
+}
+$('ogPrint56').addEventListener('click', ()=>{ if(!ogReady()) return; printNoteId = 'ogNote'; sendToRawBT(ogSlipText(S.btCols)); });
+$('ogPrint80').addEventListener('click', ()=>{ if(!ogReady()) return; printNoteId = 'ogNote'; sendToRawBT(ogSlipText(S.pcCols)); });
+$('ogShare').addEventListener('click', async ()=>{
+  if(!ogReady()) return;
+  const text = ogSlipText(S.btCols).trim();
+  if(navigator.share){ try{ await navigator.share({title: 'Old gold report', text}); return; }catch(e){ if(e && e.name === 'AbortError') return; } }
+  try{ await navigator.clipboard.writeText(text); $('ogNote').textContent = 'Copied.'; }catch(e){ $('ogNote').textContent = 'Couldn’t share here.'; }
+});
+$('ogCopy').addEventListener('click', async ()=>{
+  if(!ogReady()) return;
+  try{ await navigator.clipboard.writeText(ogSlipText(S.btCols).trim()); $('ogNote').textContent = 'Copied — paste it into WhatsApp or anywhere else.'; }
+  catch(e){ $('ogNote').textContent = 'Couldn’t copy automatically here.'; }
+});
+$('ogAdd').addEventListener('click', ()=>{ og.pieces.push(ogNewPiece()); ogRender(); const last = og.pieces[og.pieces.length - 1]; const el = $('og-wt-' + last.id); if(el) el.focus(); });
+$('ogClear').addEventListener('click', ()=>{
+  const b = $('ogClear');
+  if(!b.classList.contains('confirm')){ b.classList.add('confirm'); b.textContent = 'Tap again to clear'; return; }
+  b.classList.remove('confirm'); b.textContent = 'New slip';
+  og = {pieces: [], loss: null, seq: og.seq}; $('ogCustomer').value = ''; $('ogNote').textContent = '';
+  ogRender(); window.scrollTo({top: 0, behavior: 'smooth'});
+});
+// ---- page tabs ----
+function showPage(which){
+  const old = which === 'old';
+  $('page-est').hidden = old; $('page-old').hidden = !old;
+  $('tabEst').setAttribute('aria-selected', String(!old)); $('tabOld').setAttribute('aria-selected', String(old));
+  if(old){ if(scanning) stopCamera(); ogRender(); }
+}
+$('tabEst').addEventListener('click', ()=>showPage('est'));
+$('tabOld').addEventListener('click', ()=>showPage('old'));
 
 function receiptHtml(text){
   const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
