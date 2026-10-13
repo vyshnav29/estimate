@@ -1819,6 +1819,7 @@ function billText(){
     out.push(`Total gross weight: ${grams(T.gross)}`, `Total stone weight: ${grams(T.stoneWt)}`, `Total net weight: ${grams(T.net)}`);
     if(T.wastage22 !== null) out.push(`Total 22KT wastage: ${grams(T.wastage22)}`);
     if(T.wastage18 !== null) out.push(`Total 18KT wastage: ${grams(T.wastage18)}`);
+    out.push(`Total weight: ${grams(T.totalWt)}`);
     if(T.stones.length){
       out.push('All stones:');
       T.stones.forEach(st=>out.push(`  ${st.code} ${st.pcs ? st.qty+' pcs' : st.qty+' ct'}${st.rate === null ? '' : ' × ₹' + money(st.rate)} = ₹${money(st.cost)}`));
@@ -1869,12 +1870,37 @@ function receiptText(W){
   ratesUsed().forEach(k=>out.push(...lr(`Gold rate ${k}KT`, rs(rateFor(k)||0) + '/g')));
   out.push(rule('='));
 
-  // stone table columns scale with the paper width
-  const cw = [Math.floor(W*0.22), Math.floor(W*0.26), Math.floor(W*0.22)];
-  cw.push(W - cw[0] - cw[1] - cw[2]);
-  const trow = (a,b,c,d) => ascii(a).slice(0,cw[0]-1).padEnd(cw[0]) + ascii(b).padStart(cw[1]).slice(-cw[1])
-                          + ascii(c).padStart(cw[2]).slice(-cw[2]) + ascii(d).padStart(cw[3]).slice(-cw[3]);
+  // stone tables print inside a box of dots, title included:
+  //   ........
+  //   : All stones          :
+  //   : Stone Wt/Qty Rate Cost :
+  //   :            Total  x :
+  //   ........
   const num2 = n => Number(n).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const num0 = n => { n = Number(n); return Number.isInteger(n) ? n.toLocaleString('en-IN') : num2(n); };
+  const stoneBox = (title, rows, total) => {
+    const IW = W - 4;                                   // text width inside ": " ... " :"
+    const build = fmt => {
+      const all = [['Stone', 'Wt/Qty', 'Rate', 'Cost'],
+                   ...rows.map(r=>[r.code, r.qty, r.rate === null ? 'mixed' : fmt(r.rate), fmt(r.cost)]),
+                   ['', '', 'Total', fmt(total)]].map(r=>r.map(ascii));
+      const wcol = k => Math.max(...all.map(r=>r[k].length)) + 1;   // each column brings its own space on the left
+      const w1 = wcol(1), w2 = wcol(2), w3 = wcol(3);
+      return {all, w1, w2, w3, w0: IW - w1 - w2 - w3};
+    };
+    let t = build(num2);
+    if(t.w0 < 4) t = build(num0);                      // very big numbers on narrow paper: drop the .00
+    const w0 = Math.max(3, t.w0);
+    const row = r => {
+      const inner = r[0].slice(0, w0).padEnd(w0) + r[1].padStart(t.w1) + r[2].padStart(t.w2) + r[3].padStart(t.w3);
+      return inner.length <= IW ? ': ' + inner.padEnd(IW) + ' :' : (': ' + inner + ':').slice(0, W);   // squeeze if a huge number won't fit
+    };
+    const head = t.all[0].slice(); if(w0 < 5) head[0] = 'Stn';
+    const dots = '.'.repeat(W);
+    const tt = ascii(title).slice(0, IW), pad = Math.floor((IW - tt.length) / 2);
+    const titleLine = ': ' + (' '.repeat(pad) + tt).padEnd(IW) + ' :';                       // heading centred
+    return ['', dots, titleLine, row(head), ...t.all.slice(1).map(row), dots];
+  };
 
   items.forEach((it, i)=>{
     const c = cs[i];
@@ -1889,13 +1915,10 @@ function receiptText(W){
     // wastage
     if(c.wasteGrams){
       out.push(...lr(' Wastage (fixed)', g(c.wastage)));
+    } else if(c.wasteDisc){
+      out.push(...lr(` Wastage (${r3(c.wasteBase)}%-${r3(c.wasteDisc)}%=${r3(c.waste)}%)`, g(c.wastage)));
     } else {
-      out.push(...lr(' Wastage %', r3(c.wasteBase) + '%'));
-      if(c.wasteDisc){
-        out.push(...lr(' Wastage discount', '-' + r3(c.wasteDisc) + '%'));
-        out.push(...lr(' Wastage after discount', r3(c.waste) + '%'));
-      }
-      out.push(...lr(' Wastage', g(c.wastage)));
+      out.push(...lr(` Wastage (${r3(c.waste)}%)`, g(c.wastage)));
     }
     out.push(...lr(' Total weight', g(c.totalWt)));
     out.push('');
@@ -1905,7 +1928,6 @@ function receiptText(W){
     if(c.makingFixed){
       out.push(...lr(' Making charges (fixed)', rs(c.making)));
     } else {
-      out.push(...lr(' Making per gram', rs(c.makingPerG)));
       out.push(...lr(` Making (${r3(c.gross)}g x ${r3(c.makingPerG)})`, rs(c.making)));
     }
     out.push(...lr(' Other charges', rs(c.other)));
@@ -1916,10 +1938,8 @@ function receiptText(W){
     out.push(...lr(' ITEM TOTAL', itemAmt));
     // stone breakdown
     if(c.stoneRows.length){
-      out.push('', ' Stone breakdown');
-      out.push(trow(' Stone', 'Wt/Qty', 'Rate', 'Cost'));
-      c.stoneRows.forEach(s=>out.push(trow(' ' + s.code.toUpperCase(), s.pcs ? s.qty + 'pc' : s.qty + 'ct', num2(s.rate), num2(s.cost))));
-      out.push(trow('', '', 'Total', num2(c.stoneCost)));
+      out.push(...stoneBox('Stone breakdown',
+        c.stoneRows.map(s=>({code: s.code.toUpperCase(), qty: s.pcs ? s.qty + 'pc' : s.qty + 'ct', rate: s.rate, cost: s.cost})), c.stoneCost));
     }
     out.push(rule('='));
   });
@@ -1931,12 +1951,8 @@ function receiptText(W){
     out.push(...lr('Total net wt', g(T.net)));
     if(T.wastage22 !== null) out.push(...lr('Total 22KT wastage', g(T.wastage22)));
     if(T.wastage18 !== null) out.push(...lr('Total 18KT wastage', g(T.wastage18)));
-    if(T.stones.length){
-      out.push('', ' All stones');
-      out.push(trow(' Stone', 'Wt/Qty', 'Rate', 'Cost'));
-      T.stones.forEach(st=>out.push(trow(' ' + st.code, st.pcs ? st.qty + 'pc' : st.qty + 'ct', st.rate === null ? 'mixed' : num2(st.rate), num2(st.cost))));
-      out.push(trow('', '', 'Total', num2(T.stoneCost)), '');
-    }
+    out.push(...lr('Total weight', g(T.totalWt)));
+    out.push('');   // a line space before the amounts
     if(T.jama){
       out.push(...lr('Less jama gold (22KT)', '-' + g(T.jama)));
       out.push(...lr('Wt to pay for', g(r3(T.totalWt - T.jama))));
@@ -1951,8 +1967,15 @@ function receiptText(W){
   }
   out.push(...lr(items.length > 1 ? 'GRAND TOTAL' : 'TOTAL', T.total===null ? '-' : rs(T.total)));
   out.push(rule('='));
+  // All stones (bills with more than one item, or with jama gold) goes below the grand total, after 6 empty lines
+  if((items.length > 1 || T.jama) && T.stones.length){
+    out.push('', '', '', '', '', '');
+    out.push(...stoneBox('All stones',
+      T.stones.map(st=>({code: st.code, qty: st.pcs ? st.qty + 'pc' : st.qty + 'ct', rate: st.rate, cost: st.cost})), T.stoneCost).slice(1));
+    out.push('');
+  }
   out.push(center('This is an estimate, not a bill'));
-  out.push('', '', '');   // paper feed before tearing
+  out.push('', '', '', '', '');   // 5 empty lines of paper after the total, for tearing
   return out.join('\n');
 }
 
