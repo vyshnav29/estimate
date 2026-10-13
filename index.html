@@ -162,7 +162,10 @@ details[open] .chev{transform:rotate(180deg);}
 .item-actions{display:flex; justify-content:flex-end; margin-top:12px;}
 .remove{background:none; border:1px solid var(--line); color:var(--danger); border-radius:6px; padding:6px 12px; font-size:.8rem; cursor:pointer;}
 .remove.confirm{background:var(--danger); border-color:var(--danger); color:#1c1712; font-weight:600;}
-.item-total-line{display:flex; justify-content:space-between; align-items:baseline; margin-top:12px; padding-top:10px; border-top:1px solid var(--gold);}
+.item-total-line{display:flex; justify-content:space-between; align-items:baseline; margin-top:12px;}
+.item-total-line strong{border-top:2px solid var(--gold); padding-top:6px;}
+.line.subtotal span:first-child{color:var(--text);}
+.line.subtotal b{font-weight:600;}
 .item-total-line span{color:var(--muted); font-size:.9rem;}
 .item-total-line strong{font-size:1.25rem; color:var(--gold); font-variant-numeric:tabular-nums;}
 .grand{border-color:var(--gold);}
@@ -582,7 +585,7 @@ function calculate(t, override){
   const gst = subtotal===null ? null : Math.round(subtotal * (S.gstPct||0) / 100);
   const total = subtotal===null ? null : r2(subtotal + gst);
   return {karat, rate, gross, tagGross: t.gross, addWt, wasteBase, wasteDisc, waste, makingPerG, stoneWt, net, wastage, totalWt, gold, stoneRows, stoneCost,
-          making, other, gst, total,
+          making, other, subtotal, gst, total,
           wasteGrams: !!t.wasteGrams,
           wasteAdjusted: override.waste==null && !!(t.wasteGrams ? S.wasteGAdd : S.wasteAdd),
           makingFixed: !!t.makingFixed,
@@ -679,6 +682,7 @@ function renderBill(){
         : [lineEl('Making per gram', editableNum(item, c.makingPerG, 'making', '₹/g', c.makingAdjusted)),
            lineEl('Making charges', '₹' + money(c.making))]),
       lineEl('Other charges', '₹' + money(c.other)),
+      lineEl('Sub total', c.subtotal===null ? '—' : '₹' + money(c.subtotal), 'subtotal'),
       lineEl(`GST ${S.gstPct||0}%`, c.gst===null ? '—' : '₹' + money(c.gst))
     );
 
@@ -713,7 +717,8 @@ function renderBill(){
     });
     acts.appendChild(rm);
 
-    body.append(tl, acts);
+    L.after(tl);            // item total comes right after the amounts, before the stone breakdown
+    body.append(acts);
     det.append(sum, body);
     B.appendChild(det);
   });
@@ -783,7 +788,9 @@ function renderGrand(){
   L.append(
     lineEl('Total gross weight', grams(T.gross)),
     lineEl('Total stone weight', grams(T.stoneWt)),
-    lineEl('Total net weight', grams(T.net))
+    lineEl('Total net weight', grams(T.net)),
+    ...(T.wastage22 !== null ? [lineEl('Total 22KT wastage', grams(T.wastage22))] : []),
+    ...(T.wastage18 !== null ? [lineEl('Total 18KT wastage', grams(T.wastage18))] : [])
   );
   if(T.stones.length){
     const h = document.createElement('h2'); h.textContent = 'All stones'; L.appendChild(h);
@@ -812,6 +819,7 @@ function renderGrand(){
     lineEl('Stone price', '₹' + money(T.stoneCost)),
     lineEl('Making charges', '₹' + money(T.making)),
     lineEl('Other charges', '₹' + money(T.other)),
+    lineEl('Sub total', T.subtotal===null ? '—' : '₹' + money(T.subtotal), 'subtotal'),
     lineEl(`GST ${S.gstPct||0}%`, T.gst===null ? '—' : '₹' + money(T.gst))
   );
   $('grandOut').textContent = T.total===null ? '—' : '₹' + money(T.total);
@@ -842,9 +850,13 @@ function billTotals(){
   }));
   const stones = [...map.values()].map(g=>({code: g.code, pcs: g.pcs, qty: g.qty, cost: g.cost,
                                            rate: g.rates.size === 1 ? [...g.rates][0] : null}));
+  // wastage in grams, kept apart for 22KT and 18KT (null when the bill has no item of that karat)
+  const wastOf = k => cs.some(c=>c.karat === k) ? r3(cs.filter(c=>c.karat === k).reduce((a, c)=>a + c.wastage, 0)) : null;
+  const stoneCostT = r2(sum('stoneCost')), makingT = sum('making'), otherT = r2(sum('other'));
+  const subtotal = gold===null ? null : r2(gold + stoneCostT + makingT + otherT);
   return { gross: r3(sum('gross')), net: r3(sum('net')), stoneWt: r3(sum('stoneWt')), stones,
-           totalWt: r3(sum('totalWt')), jama, jamaValue,
-           gold, stoneCost: r2(sum('stoneCost')), making: sum('making'), other: r2(sum('other')), gst, total };
+           totalWt: r3(sum('totalWt')), jama, jamaValue, wastage22: wastOf(22), wastage18: wastOf(18),
+           gold, stoneCost: stoneCostT, making: makingT, other: otherT, subtotal, gst, total };
 }
 
 function bindBillInput(id, key){
@@ -1774,10 +1786,14 @@ function itemText(item, i, c){
       : `Wastage (${r3(c.waste)}%): ${grams(c.wastage)}`,
     `Total weight: ${grams(c.totalWt)}`,
     `Gold cost (${c.karat}KT × ₹${money(c.rate||0)}): ₹${c.gold===null?'—':money(c.gold)}`, `Stone price: ₹${money(c.stoneCost)}`);
-  c.stoneRows.forEach(s=>out.push(`  ${s.code.toUpperCase()} ${s.pcs ? s.qty+' pcs' : s.qty+' ct'} × ₹${money(s.rate)} = ₹${money(s.cost)}`));
   out.push(`Making charges${c.makingFixed ? ' (fixed)' : ''}: ₹${money(c.making)}`, `Other charges: ₹${money(c.other)}`,
+    `Sub total: ₹${c.subtotal===null?'—':money(c.subtotal)}`,
     `GST ${S.gstPct||0}%: ₹${c.gst===null?'—':money(c.gst)}`,
     `Item total: ₹${c.total===null?'—':money(c.total)}`);
+  if(c.stoneRows.length){
+    out.push('Stone breakdown:');
+    c.stoneRows.forEach(s=>out.push(`  ${s.code.toUpperCase()} ${s.pcs ? s.qty+' pcs' : s.qty+' ct'} × ₹${money(s.rate)} = ₹${money(s.cost)}`));
+  }
   return out.join('\n');
 }
 
@@ -1796,6 +1812,8 @@ function billText(){
   if(items.length > 1 || T.jama){
     out.push(items.length > 1 ? `TOTAL FOR ${items.length} ITEMS` : 'BILL');
     out.push(`Total gross weight: ${grams(T.gross)}`, `Total stone weight: ${grams(T.stoneWt)}`, `Total net weight: ${grams(T.net)}`);
+    if(T.wastage22 !== null) out.push(`Total 22KT wastage: ${grams(T.wastage22)}`);
+    if(T.wastage18 !== null) out.push(`Total 18KT wastage: ${grams(T.wastage18)}`);
     if(T.stones.length){
       out.push('All stones:');
       T.stones.forEach(st=>out.push(`  ${st.code} ${st.pcs ? st.qty+' pcs' : st.qty+' ct'}${st.rate === null ? '' : ' × ₹' + money(st.rate)} = ₹${money(st.cost)}`));
@@ -1803,6 +1821,7 @@ function billText(){
     if(T.jama) out.push(`Jama gold (customer's, at 22KT rate): − ${grams(T.jama)}`, `Weight to pay for: ${grams(r3(T.totalWt - T.jama))}`);
     out.push(`Gold: ₹${T.gold===null?'—':money(T.gold)}  Stones: ₹${money(T.stoneCost)}`,
       `Making: ₹${money(T.making)}  Other: ₹${money(T.other)}`,
+      `Sub total: ₹${T.subtotal===null?'—':money(T.subtotal)}`,
       `GST: ₹${T.gst===null?'—':money(T.gst)}`,
       `${items.length > 1 ? 'GRAND TOTAL' : 'TOTAL'}: ₹${T.total===null?'—':money(T.total)}`);
   }
@@ -1885,8 +1904,11 @@ function receiptText(W){
       out.push(...lr(` Making (${r3(c.gross)}g x ${r3(c.makingPerG)})`, rs(c.making)));
     }
     out.push(...lr(' Other charges', rs(c.other)));
+    out.push(...lr(' Sub total', c.subtotal===null ? '-' : rs(c.subtotal)));
     out.push(...lr(` GST ${S.gstPct||0}%`, c.gst===null ? '-' : rs(c.gst)));
-    out.push(...lr(' ITEM TOTAL', c.total===null ? '-' : rs(c.total)));
+    const itemAmt = c.total===null ? '-' : rs(c.total);
+    out.push(' '.repeat(Math.max(0, W - itemAmt.length)) + '-'.repeat(Math.min(W, itemAmt.length)));   // line over the amount
+    out.push(...lr(' ITEM TOTAL', itemAmt));
     // stone breakdown
     if(c.stoneRows.length){
       out.push('', ' Stone breakdown');
@@ -1902,6 +1924,8 @@ function receiptText(W){
     out.push(...lr('Total gross wt', g(T.gross)));
     out.push(...lr('Total stone wt', g(T.stoneWt)));
     out.push(...lr('Total net wt', g(T.net)));
+    if(T.wastage22 !== null) out.push(...lr('Total 22KT wastage', g(T.wastage22)));
+    if(T.wastage18 !== null) out.push(...lr('Total 18KT wastage', g(T.wastage18)));
     if(T.stones.length){
       out.push('', ' All stones');
       out.push(trow(' Stone', 'Wt/Qty', 'Rate', 'Cost'));
@@ -1916,6 +1940,7 @@ function receiptText(W){
     if(T.stoneCost) out.push(...lr('Stones', rs(T.stoneCost)));
     out.push(...lr('Making', rs(T.making)));
     if(T.other) out.push(...lr('Other', rs(T.other)));
+    out.push(...lr('Sub total', T.subtotal===null ? '-' : rs(T.subtotal)));
     out.push(...lr(`GST ${S.gstPct||0}%`, T.gst===null ? '-' : rs(T.gst)));
     out.push(rule('='));
   }

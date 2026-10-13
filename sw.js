@@ -1,6 +1,6 @@
 // Keeps the Estimate app on the phone so it opens and works with no internet.
 // When online, the page is refreshed from the site so updates arrive automatically.
-const CACHE = 'estimate-v13';
+const CACHE = 'estimate-v15';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', event => {
