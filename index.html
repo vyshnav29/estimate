@@ -350,11 +350,11 @@ a.rawbt-link{display:block; text-align:center; text-decoration:none; box-sizing:
     <h1 class="page-title">Settings</h1>
   </div>
   <section class="card">
-    <div class="set-row"><div><div class="t">Add to waste %</div><div class="d">Added to the waste % on every scanned tag.</div></div>
+    <div class="set-row"><div><div class="t">Add to waste %</div><div class="d">Added to the waste % of tags with no item name (older tags) and items entered by hand. Tags with an item name are used as they are.</div></div>
       <input id="setWasteAdd" type="number" inputmode="decimal" step="any"></div>
     <div class="set-row"><div><div class="t">Add to fixed waste (g)</div><div class="d">Added when the tag has waste in grams instead of %. Leave 0 to use the tag as it is.</div></div>
       <input id="setWasteGAdd" type="number" inputmode="decimal" step="any"></div>
-    <div class="set-row"><div><div class="t">Add to making ₹/g</div><div class="d">Added to the making charge per gram on every scanned tag.</div></div>
+    <div class="set-row"><div><div class="t">Add to making ₹/g</div><div class="d">Added to the making charge per gram of tags with no item name (older tags) and items entered by hand.</div></div>
       <input id="setMakingAdd" type="number" inputmode="decimal" step="any"></div>
     <div class="set-row"><div><div class="t">Add to fixed making ₹</div><div class="d">Added when the tag has a fixed making amount instead of per gram. Leave 0 to use the tag as it is.</div></div>
       <input id="setMakingFAdd" type="number" inputmode="decimal" step="any"></div>
@@ -563,11 +563,16 @@ function calculate(t, override){
   const addWt = override.addWt || 0;
   const gross = r3(t.gross + addWt);
   // waste is a % of net weight, or fixed grams when the tag says e.g. "0.5g"
-  const wasteBase = override.waste ?? (t.waste + ((t.wasteGrams ? S.wasteGAdd : S.wasteAdd) || 0));
+  // The settings markup (+2% waste, +₹20/g making by default) only goes on tags with no item name
+  // (older tags, and items entered by hand). Tags made with an item name are used exactly as printed.
+  const markup = !String(t.name || '').trim();
+  const wasteAddNow = markup ? ((t.wasteGrams ? S.wasteGAdd : S.wasteAdd) || 0) : 0;
+  const makingAddNow = markup ? ((t.makingFixed ? S.makingFAdd : S.makingAdd) || 0) : 0;
+  const wasteBase = override.waste ?? (t.waste + wasteAddNow);
   const wasteDisc = t.wasteGrams ? 0 : (override.disc || 0);   // this item's wastage discount
   const waste = Math.max(0, r3(wasteBase - wasteDisc));
   // making is ₹ per gram of gross weight, or a fixed ₹ for the piece when the tag says e.g. "500r"
-  const makingPerG = override.making ?? (t.making + ((t.makingFixed ? S.makingFAdd : S.makingAdd) || 0));
+  const makingPerG = override.making ?? (t.making + makingAddNow);
   const caratStones = t.stones.filter(s=>!s.pcs && s.qty>0);
   const pcsStones = t.stones.filter(s=>s.pcs && s.qty>0);
   const stoneWt = r3(caratStones.reduce((a,s)=>a+s.qty,0) / 5);
@@ -587,9 +592,9 @@ function calculate(t, override){
   return {karat, rate, gross, tagGross: t.gross, addWt, wasteBase, wasteDisc, waste, makingPerG, stoneWt, net, wastage, totalWt, gold, stoneRows, stoneCost,
           making, other, subtotal, gst, total,
           wasteGrams: !!t.wasteGrams,
-          wasteAdjusted: override.waste==null && !!(t.wasteGrams ? S.wasteGAdd : S.wasteAdd),
+          wasteAdjusted: override.waste==null && !!wasteAddNow,
           makingFixed: !!t.makingFixed,
-          makingAdjusted: override.making==null && !!(t.makingFixed ? S.makingFAdd : S.makingAdd)};
+          makingAdjusted: override.making==null && !!makingAddNow};
 }
 
 function lineEl(label, value, cls){
